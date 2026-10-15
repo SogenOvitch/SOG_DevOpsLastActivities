@@ -1,0 +1,227 @@
+<UserControl x:Class="SOG_DevOpsLastActivities.Views.Features.LastActivitiesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <UserControl.Resources>
+        <Style x:Key="CellText" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="Margin" Value="4,3" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}" />
+        </Style>
+    </UserControl.Resources>
+
+    <UserControl.InputBindings>
+        <KeyBinding Key="F5" Command="{Binding RunCommand}" />
+    </UserControl.InputBindings>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ================================================================ range -->
+        <WrapPanel Grid.Row="0">
+            <TextBlock Margin="0,0,6,0" VerticalAlignment="Center" Text="From" />
+            <DatePicker Width="135"
+                        SelectedDate="{Binding FromDate}"
+                        Tag="{Binding DefaultFromText}"
+                        ToolTip="Empty: seven days ago" />
+            <TextBlock Margin="16,0,6,0" VerticalAlignment="Center" Text="To" />
+            <DatePicker Width="135"
+                        SelectedDate="{Binding ToDate}"
+                        Tag="{Binding DefaultToText}"
+                        ToolTip="Empty: today (the whole day is included)" />
+            <Button Margin="16,0,0,0"
+                    Command="{Binding RunCommand}"
+                    Content="Get my activities (F5)"
+                    Style="{StaticResource AccentButton}" />
+            <Button Margin="6,0,0,0"
+                    Command="{Binding CancelCommand}"
+                    Content="Cancel"
+                    Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+        </WrapPanel>
+
+        <!-- ============================================================== filters -->
+        <!-- Actions filter the timeline entries (a work item with none left goes too); work
+             items filter whole rows. -->
+        <Grid Grid.Row="1" Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0"
+                       Margin="0,0,12,4"
+                       Style="{StaticResource MutedText}"
+                       Text="Actions" />
+            <ItemsControl Grid.Row="0" Grid.Column="1" ItemsSource="{Binding KindFilters}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <CheckBox Margin="0,0,14,4" Content="{Binding Label}" IsChecked="{Binding IsChecked}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Grid.Row="1"
+                       Margin="0,2,12,4"
+                       Style="{StaticResource MutedText}"
+                       Text="Work items" />
+            <CheckBox Grid.Row="1"
+                      Grid.Column="1"
+                      Margin="0,2,0,4"
+                      HorizontalAlignment="Left"
+                      Content="Assigned to me"
+                      IsChecked="{Binding ShowAssignedToMe}"
+                      ToolTip="Untick to hide the work items currently assigned to you, and keep what you did on everyone else's" />
+        </Grid>
+
+        <!-- ================================================ progress, errors, warnings -->
+        <StackPanel Grid.Row="2" Margin="0,6,0,0">
+            <DockPanel Margin="0,0,0,8" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Width="240"
+                           Margin="10,0,0,0"
+                           DockPanel.Dock="Right"
+                           Style="{StaticResource MutedText}"
+                           Text="{Binding ProgressText}"
+                           TextTrimming="CharacterEllipsis" />
+                <!-- OneWay: ProgressBar.Value binds both ways by default, and the progress is the
+                     view model's to set, so its setter is private. -->
+                <ProgressBar VerticalAlignment="Center"
+                             IsIndeterminate="{Binding IsIndeterminate, Mode=OneWay}"
+                             Maximum="{Binding ProgressMaximum, Mode=OneWay}"
+                             Value="{Binding ProgressValue, Mode=OneWay}" />
+            </DockPanel>
+            <TextBlock Margin="0,0,0,8"
+                       Foreground="{StaticResource WarnBrush}"
+                       Text="{Binding ErrorText}"
+                       TextWrapping="Wrap"
+                       Visibility="{Binding ErrorText, Converter={StaticResource EmptyToVisibility}}" />
+            <ScrollViewer MaxHeight="90"
+                          Margin="0,0,0,8"
+                          VerticalScrollBarVisibility="Auto"
+                          Visibility="{Binding WarningsText, Converter={StaticResource EmptyToVisibility}}">
+                <TextBlock Foreground="{StaticResource WarnBrush}"
+                           Opacity="0.85"
+                           Text="{Binding WarningsText}"
+                           TextWrapping="Wrap" />
+            </ScrollViewer>
+        </StackPanel>
+
+        <!-- ============================================================== results -->
+        <!-- Selecting a row opens its timeline underneath; double-click or the id opens the work item. -->
+        <DataGrid Grid.Row="3"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  GridLinesVisibility="Horizontal"
+                  HeadersVisibility="Column"
+                  IsReadOnly="True"
+                  ItemsSource="{Binding Rows}"
+                  MouseDoubleClick="OnGridDoubleClick"
+                  RowDetailsVisibilityMode="VisibleWhenSelected"
+                  SelectedItem="{Binding SelectedRow}"
+                  SelectionMode="Single"
+                  SelectionUnit="FullRow">
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Width="62" Header="ID" SortMemberPath="Id">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Margin="4,3" VerticalAlignment="Center">
+                                <Hyperlink Command="{Binding DataContext.OpenWorkItemCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                           CommandParameter="{Binding}"
+                                           ToolTip="{Binding Item.Url}">
+                                    <Run Text="{Binding Id, Mode=OneWay}" />
+                                </Hyperlink>
+                            </TextBlock>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Width="92" Binding="{Binding Type}" ElementStyle="{StaticResource CellText}" Header="Type" />
+                <DataGridTextColumn Width="2*" Binding="{Binding Title}" ElementStyle="{StaticResource CellText}" Header="Title" />
+                <DataGridTextColumn Width="88" Binding="{Binding State}" ElementStyle="{StaticResource CellText}" Header="State" />
+                <DataGridTextColumn Width="125" Binding="{Binding AssignedTo}" ElementStyle="{StaticResource CellText}" Header="Assigned To" />
+                <DataGridTextColumn Width="118"
+                                    Binding="{Binding LastActivityText}"
+                                    ElementStyle="{StaticResource CellText}"
+                                    Header="Last activity"
+                                    SortMemberPath="LastActivity" />
+                <DataGridTextColumn Width="3*" Binding="{Binding Summary}" ElementStyle="{StaticResource CellText}" Header="What I did" />
+                <DataGridTextColumn Width="1.5*" Binding="{Binding Parent}" ElementStyle="{StaticResource CellText}" Header="Parent" />
+                <DataGridTextColumn Width="58" Binding="{Binding FollowingText}" ElementStyle="{StaticResource CellText}" Header="Follow" />
+            </DataGrid.Columns>
+
+            <DataGrid.RowDetailsTemplate>
+                <DataTemplate>
+                    <Border Margin="62,2,8,8"
+                            Padding="10,6"
+                            Background="{StaticResource WindowBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="3">
+                        <ItemsControl ItemsSource="{Binding VisibleEntries}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="200" />
+                                            <ColumnDefinition Width="120" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding DateText}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource MutedText}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsApproximate}" Value="True">
+                                                            <Setter Property="FontStyle" Value="Italic" />
+                                                            <Setter Property="ToolTip" Value="Azure DevOps keeps no date for reactions: this is the window it happened in, from the comment being posted to your last recorded visit to the work item." />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBlock Grid.Column="1"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource LinkBrush}"
+                                                   Text="{Binding KindLabel}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Detail}" TextWrapping="Wrap" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+                </DataTemplate>
+            </DataGrid.RowDetailsTemplate>
+        </DataGrid>
+
+        <!-- =========================================================== status bar -->
+        <DockPanel Grid.Row="4" Margin="0,8,0,0">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Command="{Binding CopySummaryCommand}"
+                        Content="Copy summary"
+                        ToolTip="One line per work item, ready to paste into a report" />
+                <Button Margin="6,0,0,0"
+                        Command="{Binding ExportCsvCommand}"
+                        Content="Export CSV…"
+                        ToolTip="One line per action, with its date" />
+            </StackPanel>
+            <TextBlock VerticalAlignment="Center"
+                       Style="{StaticResource MutedText}"
+                       Text="{Binding StatusText}"
+                       TextTrimming="CharacterEllipsis" />
+        </DockPanel>
+    </Grid>
+</UserControl>
